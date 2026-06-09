@@ -1,10 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../../core/theme/app_theme.dart';
+import '../../../core/localization/app_localizations.dart';
+import '../../../data/models/cost_estimate_model.dart';
 import '../../providers/project_provider.dart';
 import '../../providers/currency_provider.dart';
 
 class MaterialsScreen extends ConsumerStatefulWidget {
   final String projectId;
+
   const MaterialsScreen({super.key, required this.projectId});
 
   @override
@@ -13,210 +19,292 @@ class MaterialsScreen extends ConsumerStatefulWidget {
 
 class _MaterialsScreenState extends ConsumerState<MaterialsScreen> {
   String _searchQuery = '';
-  String? _categoryFilter;
+  String? _selectedCategory;
 
   @override
   Widget build(BuildContext context) {
-    final projectsState = ref.watch(projectsProvider);
-    final project = projectsState.projects.where((p) => p.id == widget.projectId).firstOrNull;
+    final l10n = AppLocalizations.of(context);
+    final detailState = ref.watch(projectDetailProvider);
     final currencyState = ref.watch(currencyProvider);
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+    final colorScheme = Theme.of(context).colorScheme;
 
-    final materials = (project?.materialReport as List<dynamic>?) ?? [];
-
-    if (materials.isEmpty) {
+    if (detailState.costEstimate == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Materials Report')),
+        appBar: AppBar(title: Text(l10n.materials)),
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.inventory_2_outlined, size: 64, color: colorScheme.onSurfaceVariant.withOpacity(0.4)),
+              Icon(Icons.inventory_2_outlined, size: 64, color: colorScheme.onSurfaceVariant),
               const SizedBox(height: 16),
-              Text('No materials report yet', style: theme.textTheme.titleMedium),
-              const SizedBox(height: 8),
-              Text('Generate your plan to view materials list.', style: TextStyle(color: colorScheme.onSurfaceVariant)),
+              Text(l10n.noMaterials, style: Theme.of(context).textTheme.titleMedium),
             ],
           ),
         ),
       );
     }
 
-    // Get categories
-    final categories = materials.map((m) => m['category'] as String? ?? 'Other').toSet().toList()..sort();
+    final materials = detailState.costEstimate!.materials;
+    final byCategory = detailState.costEstimate!.materialsByCategory;
+    final categories = byCategory.keys.toList();
 
-    final filtered = materials.where((m) {
-      final name = m['name'] as String? ?? '';
-      final category = m['category'] as String? ?? '';
-      final matchSearch = _searchQuery.isEmpty || name.toLowerCase().contains(_searchQuery.toLowerCase());
-      final matchCategory = _categoryFilter == null || category == _categoryFilter;
-      return matchSearch && matchCategory;
+    // Filter materials
+    List<MaterialItem> filteredMaterials = materials.where((m) {
+      final matchesSearch = _searchQuery.isEmpty ||
+          m.name.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+          m.category.toLowerCase().contains(_searchQuery.toLowerCase());
+      final matchesCategory = _selectedCategory == null || m.category == _selectedCategory;
+      return matchesSearch && matchesCategory;
     }).toList();
+
+    final totalFiltered = filteredMaterials.fold<double>(0, (sum, m) => sum + m.totalPrice);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Materials Report'),
+        title: Text(l10n.materials),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded),
+          onPressed: () => context.pop(),
+        ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.download_outlined),
-            onPressed: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Preparing materials report PDF...'))),
+            icon: const Icon(Icons.share_rounded),
+            onPressed: () {},
+            tooltip: l10n.share,
           ),
         ],
       ),
       body: Column(
         children: [
-          // Search bar
+          // Search and filter
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-            child: TextField(
-              decoration: InputDecoration(
-                hintText: 'Search materials...',
-                prefixIcon: const Icon(Icons.search),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                filled: true,
-                fillColor: colorScheme.surfaceVariant.withOpacity(0.5),
-                contentPadding: EdgeInsets.zero,
-              ),
-              onChanged: (v) => setState(() => _searchQuery = v),
-            ),
-          ),
-
-          // Category filter chips
-          SizedBox(
-            height: 48,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+            child: Column(
               children: [
-                Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: FilterChip(
-                    label: const Text('All'),
-                    selected: _categoryFilter == null,
-                    onSelected: (_) => setState(() => _categoryFilter = null),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: BorderSide.none),
+                SearchBar(
+                  hintText: 'Search materials...',
+                  leading: const Icon(Icons.search_rounded),
+                  onChanged: (q) => setState(() => _searchQuery = q),
+                  backgroundColor: MaterialStatePropertyAll(colorScheme.surfaceVariant),
+                  elevation: const MaterialStatePropertyAll(0),
+                  shape: MaterialStatePropertyAll(
+                    RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                 ),
-                ...categories.map((cat) => Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: FilterChip(
-                    label: Text(cat),
-                    selected: _categoryFilter == cat,
-                    onSelected: (_) => setState(() => _categoryFilter = cat == _categoryFilter ? null : cat),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: BorderSide.none),
+                const SizedBox(height: 8),
+                // Category chips
+                SizedBox(
+                  height: 36,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    children: [
+                      _categoryChip('All', null, colorScheme),
+                      ...categories.map((c) => _categoryChip(c, c, colorScheme)),
+                    ],
                   ),
-                )),
+                ),
               ],
             ),
           ),
 
-          // Summary row
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          // Summary bar
+          Container(
+            margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: BoxDecoration(
+              color: colorScheme.primaryContainer,
+              borderRadius: BorderRadius.circular(12),
+            ),
             child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('${filtered.length} items', style: theme.textTheme.labelSmall?.copyWith(color: colorScheme.onSurfaceVariant)),
-                const Spacer(),
-                Text('Showing for ${project?.constructionQuality ?? "standard"} quality', style: theme.textTheme.labelSmall?.copyWith(color: colorScheme.onSurfaceVariant)),
+                Text(
+                  '${filteredMaterials.length} materials',
+                  style: TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 13,
+                    color: colorScheme.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Text(
+                  'Total: ${currencyState.formatAmount(totalFiltered)}',
+                  style: TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 14,
+                    color: colorScheme.primary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
               ],
             ),
           ),
 
           // Materials list
           Expanded(
-            child: ListView.separated(
-              padding: const EdgeInsets.all(16),
-              itemCount: filtered.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 8),
-              itemBuilder: (_, i) {
-                final item = filtered[i];
-                return _MaterialCard(item: item, currencyState: currencyState);
-              },
-            ),
+            child: filteredMaterials.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.search_off_rounded, size: 48, color: colorScheme.onSurfaceVariant),
+                        const SizedBox(height: 12),
+                        Text('No materials found', style: Theme.of(context).textTheme.titleMedium),
+                      ],
+                    ),
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                    itemCount: filteredMaterials.length,
+                    itemBuilder: (context, index) {
+                      return _materialCard(context, filteredMaterials[index], currencyState, colorScheme);
+                    },
+                  ),
           ),
         ],
       ),
     );
   }
-}
 
-class _MaterialCard extends StatelessWidget {
-  final dynamic item;
-  final dynamic currencyState;
-  const _MaterialCard({required this.item, required this.currencyState});
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final category = item['category'] as String? ?? 'Other';
-    final name = item['name'] as String? ?? '';
-    final quantity = item['quantity'];
-    final unit = item['unit'] as String? ?? '';
-
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: colorScheme.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: colorScheme.outlineVariant),
+  Widget _categoryChip(String label, String? value, ColorScheme colorScheme) {
+    final isSelected = _selectedCategory == value;
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: FilterChip(
+        label: Text(label),
+        selected: isSelected,
+        onSelected: (_) => setState(() => _selectedCategory = value),
+        backgroundColor: colorScheme.surfaceVariant,
+        selectedColor: colorScheme.primaryContainer,
+        checkmarkColor: colorScheme.primary,
+        labelStyle: TextStyle(
+          fontFamily: 'Poppins',
+          fontSize: 12,
+          color: isSelected ? colorScheme.primary : colorScheme.onSurfaceVariant,
+          fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+        ),
+        side: BorderSide(
+          color: isSelected ? colorScheme.primary : colorScheme.outline,
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 4),
       ),
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: _categoryColor(category).withOpacity(0.1),
-              borderRadius: BorderRadius.circular(10),
+    );
+  }
+
+  Widget _materialCard(
+    BuildContext context,
+    MaterialItem material,
+    CurrencyState currencyState,
+    ColorScheme colorScheme,
+  ) {
+    final Map<String, Color> categoryColors = {
+      'Concrete & Masonry': const Color(0xFF8B4513),
+      'Structural': AppColors.primaryLight,
+      'Aggregates': const Color(0xFF9B6B2B),
+      'Roofing': const Color(0xFF9B59B6),
+      'Finishes': AppColors.accentLight,
+      'Openings': const Color(0xFF4A90D9),
+      'Electrical': AppColors.warning,
+      'Plumbing': const Color(0xFF1ABC9C),
+      'HVAC & Insulation': const Color(0xFF3498DB),
+    };
+
+    final color = categoryColors[material.category] ?? colorScheme.primary;
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          children: [
+            // Category color indicator
+            Container(
+              width: 4,
+              height: 60,
+              decoration: BoxDecoration(
+                color: color,
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
-            child: Icon(_categoryIcon(category), color: _categoryColor(category), size: 20),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    material.name,
+                    style: const TextStyle(
+                      fontFamily: 'Poppins',
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: color.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      material.category,
+                      style: TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 11,
+                        color: color,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Text(
+                        '${material.quantity.toStringAsFixed(0)} ${material.unit}',
+                        style: TextStyle(
+                          fontFamily: 'Poppins',
+                          fontSize: 12,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      const Text(' × ', style: TextStyle(color: Colors.grey)),
+                      Text(
+                        currencyState.formatAmount(material.unitPrice),
+                        style: TextStyle(
+                          fontFamily: 'Poppins',
+                          fontSize: 12,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text(name, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-                Text(category, style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 12)),
+                Text(
+                  currencyState.formatAmount(material.totalPrice),
+                  style: const TextStyle(
+                    fontFamily: 'Poppins',
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                  ),
+                ),
+                Text(
+                  'total',
+                  style: TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 11,
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
               ],
             ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text('$quantity', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-              Text(unit, style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 11)),
-            ],
-          ),
-        ],
+          ],
+        ),
       ),
     );
-  }
-
-  Color _categoryColor(String category) {
-    switch (category.toLowerCase()) {
-      case 'structure': return Colors.blue;
-      case 'roofing': return Colors.orange;
-      case 'electrical': return Colors.yellow.shade800;
-      case 'plumbing': return Colors.cyan;
-      case 'interior': return Colors.purple;
-      case 'insulation': return Colors.green;
-      case 'doors & windows': return Colors.teal;
-      default: return Colors.grey;
-    }
-  }
-
-  IconData _categoryIcon(String category) {
-    switch (category.toLowerCase()) {
-      case 'structure': return Icons.foundation;
-      case 'roofing': return Icons.roofing;
-      case 'electrical': return Icons.electrical_services;
-      case 'plumbing': return Icons.plumbing;
-      case 'interior': return Icons.format_paint;
-      case 'insulation': return Icons.layers;
-      case 'doors & windows': return Icons.door_back_door_outlined;
-      default: return Icons.inventory_2_outlined;
-    }
   }
 }

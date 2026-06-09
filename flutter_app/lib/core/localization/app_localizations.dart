@@ -231,6 +231,22 @@ class AppLocalizations {
   String get validationEmail => translate('validation_email');
   String get validationMinLength => translate('validation_min_length');
   String get validationPasswordStrength => translate('validation_password_strength');
+
+  // Report specific
+  String get reportFloorPlan => translate('report_floor_plan');
+  String get reportCostBreakdown => translate('report_cost_breakdown');
+  String get reportMaterials => translate('report_materials');
+  String get reportTimeline => translate('report_timeline');
+  String get openPdf => translate('open_pdf');
+  String get pdfGenerated => translate('pdf_generated');
+  String get reportIncludes => translate('report_includes');
+
+  // Materials specific
+  String get noMaterials => translate('no_materials');
+
+  // Settings specific
+  String get selectLanguage => translate('select_language');
+  String get selectCurrency => translate('select_currency');
 }
 
 class _AppLocalizationsDelegate

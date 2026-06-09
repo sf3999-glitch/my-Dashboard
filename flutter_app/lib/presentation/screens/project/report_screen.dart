@@ -1,9 +1,22 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:path_provider/path_provider.dart';
+import 'dart:io';
+
+import '../../../core/theme/app_theme.dart';
+import '../../../core/localization/app_localizations.dart';
 import '../../providers/project_provider.dart';
+import '../../providers/currency_provider.dart';
 
 class ReportScreen extends ConsumerStatefulWidget {
   final String projectId;
+
   const ReportScreen({super.key, required this.projectId});
 
   @override
@@ -11,235 +24,459 @@ class ReportScreen extends ConsumerStatefulWidget {
 }
 
 class _ReportScreenState extends ConsumerState<ReportScreen> {
-  bool _isDownloading = false;
-  double _downloadProgress = 0;
+  bool _isGenerating = false;
+  bool _isGenerated = false;
+  double _progress = 0.0;
+  Uint8List? _pdfBytes;
 
-  Future<void> _downloadPDF(String type) async {
-    setState(() { _isDownloading = true; _downloadProgress = 0; });
-    for (int i = 1; i <= 10; i++) {
-      await Future.delayed(const Duration(milliseconds: 150));
-      if (mounted) setState(() => _downloadProgress = i / 10);
-    }
-    if (mounted) {
-      setState(() => _isDownloading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('$type PDF downloaded successfully!'),
-          action: SnackBarAction(label: 'Open', onPressed: () {}),
+  Future<void> _generatePdf() async {
+    setState(() {
+      _isGenerating = true;
+      _progress = 0.0;
+    });
+
+    try {
+      final detailState = ref.read(projectDetailProvider);
+      final project = detailState.project;
+      final costEstimate = detailState.costEstimate;
+      final floorPlan = detailState.floorPlan;
+      final currencyState = ref.read(currencyProvider);
+
+      setState(() => _progress = 0.2);
+
+      final pdf = pw.Document();
+
+      setState(() => _progress = 0.4);
+
+      // Title Page
+      pdf.addPage(
+        pw.Page(
+          pageFormat: PdfPageFormat.a4,
+          build: (context) {
+            return pw.Container(
+              width: double.infinity,
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Container(
+                    width: double.infinity,
+                    padding: const pw.EdgeInsets.all(24),
+                    color: PdfColor.fromHex('#1A3A6B'),
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text(
+                          'AI House Planner',
+                          style: pw.TextStyle(
+                            fontSize: 12,
+                            color: PdfColors.white70,
+                          ),
+                        ),
+                        pw.SizedBox(height: 8),
+                        pw.Text(
+                          project?.name ?? 'House Project Report',
+                          style: pw.TextStyle(
+                            fontSize: 24,
+                            fontWeight: pw.FontWeight.bold,
+                            color: PdfColors.white,
+                          ),
+                        ),
+                        pw.SizedBox(height: 4),
+                        pw.Text(
+                          'Generated on: ${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}',
+                          style: pw.TextStyle(
+                            fontSize: 11,
+                            color: PdfColors.white70,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  pw.SizedBox(height: 24),
+                  if (project != null) ...[
+                    pw.Text(
+                      'Project Summary',
+                      style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold),
+                    ),
+                    pw.SizedBox(height: 12),
+                    _pdfRow('Location', '${project.city}, ${project.country}'),
+                    _pdfRow('Plot Size', project.sizeDisplay),
+                    _pdfRow('Number of Floors', '${project.floors}'),
+                    _pdfRow('Bedrooms', '${project.bedrooms}'),
+                    _pdfRow('Bathrooms', '${project.bathrooms}'),
+                    _pdfRow('House Style', project.houseStyle),
+                    _pdfRow('Construction Quality', project.constructionQuality),
+                  ],
+                  if (costEstimate != null) ...[
+                    pw.SizedBox(height: 24),
+                    pw.Text(
+                      'Cost Estimate',
+                      style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold),
+                    ),
+                    pw.SizedBox(height: 12),
+                    _pdfRow('Total Cost', currencyState.formatAmount(costEstimate.totalCost)),
+                    _pdfRow('Material Cost', currencyState.formatAmount(costEstimate.materialCost)),
+                    _pdfRow('Labor Cost', currencyState.formatAmount(costEstimate.laborCost)),
+                    _pdfRow('Contingency', currencyState.formatAmount(costEstimate.contingency)),
+                    _pdfRow('Timeline', costEstimate.timeline),
+                    _pdfRow('Area', '${costEstimate.areaInSqFt.toStringAsFixed(0)} sq ft'),
+                    _pdfRow('Cost per sq ft', currencyState.formatAmount(costEstimate.costPerSqFt)),
+                  ],
+                ],
+              ),
+            );
+          },
         ),
       );
+
+      setState(() => _progress = 0.7);
+
+      // Cost Breakdown Page
+      if (costEstimate != null) {
+        pdf.addPage(
+          pw.Page(
+            pageFormat: PdfPageFormat.a4,
+            build: (context) {
+              return pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text(
+                    'Cost Breakdown',
+                    style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold),
+                  ),
+                  pw.SizedBox(height: 16),
+                  ...costEstimate.breakdown.toMap().entries.map((entry) {
+                    final percent = entry.value / costEstimate.breakdown.total * 100;
+                    return pw.Padding(
+                      padding: const pw.EdgeInsets.only(bottom: 10),
+                      child: pw.Row(
+                        children: [
+                          pw.Expanded(child: pw.Text(entry.key, style: pw.TextStyle(fontSize: 12))),
+                          pw.Text(
+                            currencyState.formatAmount(entry.value),
+                            style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12),
+                          ),
+                          pw.SizedBox(width: 16),
+                          pw.Text(
+                            '${percent.toStringAsFixed(1)}%',
+                            style: pw.TextStyle(fontSize: 11, color: PdfColors.grey),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+
+                  pw.SizedBox(height: 24),
+
+                  if (costEstimate.materials.isNotEmpty) ...[
+                    pw.Text(
+                      'Materials List (Top 10)',
+                      style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold),
+                    ),
+                    pw.SizedBox(height: 12),
+                    pw.Table(
+                      border: pw.TableBorder.all(color: PdfColors.grey300),
+                      children: [
+                        pw.TableRow(
+                          decoration: const pw.BoxDecoration(color: PdfColor.fromInt(0xFF1A3A6B)),
+                          children: [
+                            _pdfTableHeader('Material'),
+                            _pdfTableHeader('Qty'),
+                            _pdfTableHeader('Unit'),
+                            _pdfTableHeader('Total'),
+                          ],
+                        ),
+                        ...costEstimate.materials.take(10).map((m) {
+                          return pw.TableRow(
+                            children: [
+                              _pdfTableCell(m.name),
+                              _pdfTableCell(m.quantity.toStringAsFixed(0)),
+                              _pdfTableCell(m.unit),
+                              _pdfTableCell(currencyState.formatAmount(m.totalPrice)),
+                            ],
+                          );
+                        }).toList(),
+                      ],
+                    ),
+                  ],
+                ],
+              );
+            },
+          ),
+        );
+      }
+
+      setState(() => _progress = 0.9);
+
+      _pdfBytes = await pdf.save();
+
+      setState(() {
+        _progress = 1.0;
+        _isGenerating = false;
+        _isGenerated = true;
+      });
+    } catch (e) {
+      setState(() {
+        _isGenerating = false;
+        _progress = 0.0;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to generate PDF: $e'), backgroundColor: AppColors.error),
+        );
+      }
+    }
+  }
+
+  pw.Widget _pdfRow(String label, String value) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.only(bottom: 8),
+      child: pw.Row(
+        children: [
+          pw.Expanded(
+            child: pw.Text(label, style: pw.TextStyle(color: PdfColors.grey700, fontSize: 12)),
+          ),
+          pw.Text(value, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12)),
+        ],
+      ),
+    );
+  }
+
+  pw.Widget _pdfTableHeader(String text) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.all(6),
+      child: pw.Text(
+        text,
+        style: pw.TextStyle(
+          color: PdfColors.white,
+          fontWeight: pw.FontWeight.bold,
+          fontSize: 11,
+        ),
+      ),
+    );
+  }
+
+  pw.Widget _pdfTableCell(String text) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.all(6),
+      child: pw.Text(text, style: const pw.TextStyle(fontSize: 10)),
+    );
+  }
+
+  Future<void> _printPdf() async {
+    if (_pdfBytes == null) return;
+    await Printing.layoutPdf(onLayout: (_) async => _pdfBytes!);
+  }
+
+  Future<void> _sharePdf() async {
+    if (_pdfBytes == null) return;
+    try {
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/house_plan_report.pdf');
+      await file.writeAsBytes(_pdfBytes!);
+      await Share.shareXFiles([XFile(file.path)], text: 'My House Plan Report');
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Share failed: $e')),
+        );
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final projectsState = ref.watch(projectsProvider);
-    final project = projectsState.projects.where((p) => p.id == widget.projectId).firstOrNull;
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+    final l10n = AppLocalizations.of(context);
+    final colorScheme = Theme.of(context).colorScheme;
+    final detailState = ref.watch(projectDetailProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Reports & Export'), centerTitle: true),
+      appBar: AppBar(
+        title: Text(l10n.report),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded),
+          onPressed: () => context.pop(),
+        ),
+      ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Project summary card
-            if (project != null) ...[
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
+            // Report Preview Card
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    colorScheme.primaryContainer,
+                    colorScheme.secondaryContainer,
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.picture_as_pdf_rounded,
+                    size: 64,
+                    color: colorScheme.primary,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Complete Project Report',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          color: colorScheme.primary,
+                        ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    detailState.project?.name ?? 'House Project',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 24),
+
+            // What's included
+            Text('Report includes:', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 12),
+            ...[
+              (Icons.architecture_rounded, l10n.reportFloorPlan),
+              (Icons.calculate_rounded, l10n.reportCostBreakdown),
+              (Icons.inventory_2_rounded, l10n.reportMaterials),
+              (Icons.schedule_rounded, l10n.reportTimeline),
+            ].map((item) => Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
                   child: Row(
                     children: [
                       Container(
-                        width: 56,
-                        height: 56,
+                        width: 32,
+                        height: 32,
                         decoration: BoxDecoration(
                           color: colorScheme.primaryContainer,
-                          borderRadius: BorderRadius.circular(14),
+                          borderRadius: BorderRadius.circular(8),
                         ),
-                        child: Icon(Icons.home_work_rounded, color: colorScheme.primary, size: 28),
+                        child: Icon(item.$1, size: 16, color: colorScheme.primary),
                       ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(project.name, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-                            Text('${project.country ?? ''} · ${project.floors ?? 1} Floor(s) · ${project.constructionQuality ?? "Standard"}', style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13)),
-                          ],
-                        ),
-                      ),
+                      const SizedBox(width: 12),
+                      Text(item.$2, style: Theme.of(context).textTheme.bodyMedium),
                     ],
                   ),
-                ),
-              ),
-              const SizedBox(height: 24),
-            ],
+                )),
 
-            Text('Download Reports', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 12),
+            const SizedBox(height: 32),
 
-            if (_isDownloading) ...[
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    children: [
-                      Row(
-                        children: [
-                          const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
-                          const SizedBox(width: 12),
-                          const Text('Preparing PDF...'),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      LinearProgressIndicator(value: _downloadProgress, borderRadius: BorderRadius.circular(4)),
-                    ],
+            // Generation progress
+            if (_isGenerating) ...[
+              Column(
+                children: [
+                  Text(
+                    l10n.generatingReport,
+                    style: Theme.of(context).textTheme.titleMedium,
                   ),
-                ),
-              ),
-              const SizedBox(height: 12),
-            ],
-
-            _ReportCard(
-              title: 'Full Project Report',
-              description: 'Complete report with floor plan, cost breakdown, materials list, and AI recommendations.',
-              icon: Icons.article_outlined,
-              color: colorScheme.primary,
-              onDownload: () => _downloadPDF('Full Project'),
-              isDownloading: _isDownloading,
-            ),
-            const SizedBox(height: 12),
-            _ReportCard(
-              title: 'Floor Plan Only',
-              description: 'Detailed 2D floor plan with room dimensions and labels for all floors.',
-              icon: Icons.architecture,
-              color: Colors.blue,
-              onDownload: () => _downloadPDF('Floor Plan'),
-              isDownloading: _isDownloading,
-            ),
-            const SizedBox(height: 12),
-            _ReportCard(
-              title: 'Cost Estimate Report',
-              description: 'Detailed cost breakdown by category with labor, material split and timeline.',
-              icon: Icons.attach_money,
-              color: Colors.green,
-              onDownload: () => _downloadPDF('Cost Estimate'),
-              isDownloading: _isDownloading,
-            ),
-            const SizedBox(height: 12),
-            _ReportCard(
-              title: 'Materials Report',
-              description: 'Complete materials list with quantities, units and estimated costs.',
-              icon: Icons.inventory_2_outlined,
-              color: Colors.orange,
-              onDownload: () => _downloadPDF('Materials'),
-              isDownloading: _isDownloading,
-            ),
-            const SizedBox(height: 24),
-
-            Text('Share Options', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 12),
-
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: colorScheme.surfaceVariant.withOpacity(0.5),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              'https://houseplanner.ai/p/${project?.id ?? "share-link"}',
-                              style: const TextStyle(fontSize: 12, fontFamily: 'monospace'),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        IconButton(
-                          onPressed: () {
-                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Link copied!')));
-                          },
-                          icon: const Icon(Icons.copy_outlined),
-                        ),
-                      ],
+                  const SizedBox(height: 12),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: LinearProgressIndicator(
+                      value: _progress,
+                      minHeight: 8,
+                      backgroundColor: colorScheme.surfaceVariant,
+                      valueColor: AlwaysStoppedAnimation<Color>(colorScheme.primary),
                     ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: () {},
-                            icon: const Icon(Icons.share_outlined, size: 18),
-                            label: const Text('Share Link'),
-                            style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 12)),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: () {},
-                            icon: const Icon(Icons.email_outlined, size: 18),
-                            label: const Text('Email Report'),
-                            style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 12)),
-                          ),
-                        ),
-                      ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '${(_progress * 100).toInt()}%',
+                    style: TextStyle(
+                      fontFamily: 'Poppins',
+                      fontWeight: FontWeight.w600,
+                      color: colorScheme.primary,
+                    ),
+                  ),
+                ],
+              ),
+            ] else if (_isGenerated && _pdfBytes != null) ...[
+              // PDF actions
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.success.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: AppColors.success.withOpacity(0.3)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.check_circle_rounded, color: AppColors.success),
+                    const SizedBox(width: 12),
+                    Text(
+                      l10n.pdfGenerated,
+                      style: const TextStyle(
+                        fontFamily: 'Poppins',
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.success,
+                      ),
                     ),
                   ],
                 ),
               ),
-            ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: _printPdf,
+                      icon: const Icon(Icons.print_rounded),
+                      label: Text(l10n.openPdf),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _sharePdf,
+                      icon: const Icon(Icons.share_rounded),
+                      label: Text(l10n.share),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: _generatePdf,
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Regenerate Report'),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 48),
+                ),
+              ),
+            ] else ...[
+              // Generate button
+              ElevatedButton.icon(
+                onPressed: _generatePdf,
+                icon: const Icon(Icons.auto_awesome_rounded),
+                label: Text(l10n.downloadReport),
+                style: ElevatedButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 54),
+                  textStyle: const TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+
+            const SizedBox(height: 32),
           ],
         ),
       ),
     );
   }
-}
-
-class _ReportCard extends StatelessWidget {
-  final String title;
-  final String description;
-  final IconData icon;
-  final Color color;
-  final VoidCallback onDownload;
-  final bool isDownloading;
-
-  const _ReportCard({
-    required this.title,
-    required this.description,
-    required this.icon,
-    required this.color,
-    required this.onDownload,
-    required this.isDownloading,
-  });
-
-  @override
-  Widget build(BuildContext context) => Card(
-    child: ListTile(
-      contentPadding: const EdgeInsets.all(16),
-      leading: Container(
-        width: 48,
-        height: 48,
-        decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
-        child: Icon(icon, color: color, size: 24),
-      ),
-      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-      subtitle: Text(description, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
-      trailing: IconButton(
-        onPressed: isDownloading ? null : onDownload,
-        icon: Icon(Icons.download_outlined, color: color),
-        style: IconButton.styleFrom(backgroundColor: color.withOpacity(0.1)),
-      ),
-    ),
-  );
 }

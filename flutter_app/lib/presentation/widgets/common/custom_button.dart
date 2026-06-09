@@ -1,100 +1,120 @@
 import 'package:flutter/material.dart';
+import '../../../core/theme/app_theme.dart';
 
 enum ButtonVariant { primary, secondary, outline, danger }
 
 class CustomButton extends StatelessWidget {
-  final String label;
+  final String text;
   final VoidCallback? onPressed;
   final bool isLoading;
-  final ButtonVariant variant;
   final double? width;
   final double? height;
   final IconData? icon;
-  final bool iconLeading;
+  final ButtonVariant variant;
+  final double? fontSize;
 
   const CustomButton({
     super.key,
-    required this.label,
+    required this.text,
     this.onPressed,
     this.isLoading = false,
-    this.variant = ButtonVariant.primary,
     this.width,
     this.height,
     this.icon,
-    this.iconLeading = true,
+    this.variant = ButtonVariant.primary,
+    this.fontSize,
   });
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final disabled = isLoading || onPressed == null;
 
-    Widget content = isLoading
-        ? SizedBox(
-            width: 20,
-            height: 20,
-            child: CircularProgressIndicator(strokeWidth: 2, color: _getForeground(colorScheme)),
-          )
-        : Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (icon != null && iconLeading) ...[Icon(icon, size: 18), const SizedBox(width: 8)],
-              Text(label, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
-              if (icon != null && !iconLeading) ...[const SizedBox(width: 8), Icon(icon, size: 18)],
-            ],
-          );
-
-    final shape = RoundedRectangleBorder(borderRadius: BorderRadius.circular(12));
-    final size = SizedBox(width: width, height: height ?? 52, child: null);
-
-    if (variant == ButtonVariant.outline) {
-      return SizedBox(
-        width: width,
-        height: height ?? 52,
-        child: OutlinedButton(
-          onPressed: disabled ? null : onPressed,
-          style: OutlinedButton.styleFrom(
-            foregroundColor: colorScheme.primary,
-            side: BorderSide(color: colorScheme.primary),
-            shape: shape,
+    switch (variant) {
+      case ButtonVariant.primary:
+        return SizedBox(
+          width: width,
+          height: height ?? 50,
+          child: ElevatedButton(
+            onPressed: isLoading ? null : onPressed,
+            child: _buildContent(context, Colors.white),
           ),
-          child: content,
-        ),
-      );
+        );
+      case ButtonVariant.secondary:
+        return SizedBox(
+          width: width,
+          height: height ?? 50,
+          child: ElevatedButton(
+            onPressed: isLoading ? null : onPressed,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: colorScheme.secondaryContainer,
+              foregroundColor: colorScheme.onSecondaryContainer,
+            ),
+            child: _buildContent(context, colorScheme.onSecondaryContainer),
+          ),
+        );
+      case ButtonVariant.outline:
+        return SizedBox(
+          width: width,
+          height: height ?? 50,
+          child: OutlinedButton(
+            onPressed: isLoading ? null : onPressed,
+            child: _buildContent(context, colorScheme.primary),
+          ),
+        );
+      case ButtonVariant.danger:
+        return SizedBox(
+          width: width,
+          height: height ?? 50,
+          child: ElevatedButton(
+            onPressed: isLoading ? null : onPressed,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+              foregroundColor: Colors.white,
+            ),
+            child: _buildContent(context, Colors.white),
+          ),
+        );
     }
-
-    if (variant == ButtonVariant.secondary) {
-      return SizedBox(
-        width: width,
-        height: height ?? 52,
-        child: FilledButton.tonal(
-          onPressed: disabled ? null : onPressed,
-          style: FilledButton.styleFrom(shape: shape),
-          child: content,
-        ),
-      );
-    }
-
-    return SizedBox(
-      width: width,
-      height: height ?? 52,
-      child: FilledButton(
-        onPressed: disabled ? null : onPressed,
-        style: FilledButton.styleFrom(
-          backgroundColor: variant == ButtonVariant.danger ? colorScheme.error : null,
-          shape: shape,
-        ),
-        child: content,
-      ),
-    );
   }
 
-  Color _getForeground(ColorScheme cs) {
-    switch (variant) {
-      case ButtonVariant.primary: return cs.onPrimary;
-      case ButtonVariant.secondary: return cs.onSecondaryContainer;
-      case ButtonVariant.outline: return cs.primary;
-      case ButtonVariant.danger: return cs.onError;
+  Widget _buildContent(BuildContext context, Color textColor) {
+    if (isLoading) {
+      return SizedBox(
+        width: 20,
+        height: 20,
+        child: CircularProgressIndicator(
+          strokeWidth: 2,
+          valueColor: AlwaysStoppedAnimation<Color>(textColor),
+        ),
+      );
     }
+
+    if (icon != null) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 18),
+          const SizedBox(width: 8),
+          Text(
+            text,
+            style: TextStyle(
+              fontSize: fontSize ?? 15,
+              fontWeight: FontWeight.w600,
+              fontFamily: 'Poppins',
+            ),
+          ),
+        ],
+      );
+    }
+
+    return Text(
+      text,
+      style: TextStyle(
+        fontSize: fontSize ?? 15,
+        fontWeight: FontWeight.w600,
+        fontFamily: 'Poppins',
+      ),
+    );
   }
 }

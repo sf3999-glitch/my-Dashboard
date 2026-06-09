@@ -1,99 +1,175 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../providers/auth_provider.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+
+import '../../core/router/app_router.dart';
+import '../../core/theme/app_theme.dart';
+import '../../core/constants/app_constants.dart';
+import '../../core/localization/app_localizations.dart';
 import '../providers/theme_provider.dart';
 import '../providers/locale_provider.dart';
 import '../providers/currency_provider.dart';
+import '../providers/auth_provider.dart';
 
-class SettingsScreen extends ConsumerWidget {
+class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends ConsumerState<SettingsScreen> {
+  String _appVersion = '1.0.0';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadVersion();
+  }
+
+  Future<void> _loadVersion() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      setState(() => _appVersion = info.version);
+    } catch (_) {}
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final themeMode = ref.watch(themeModeProvider);
     final locale = ref.watch(localeProvider);
     final currencyState = ref.watch(currencyProvider);
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Settings'),
-        centerTitle: true,
+        title: Text(l10n.settings),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded),
+          onPressed: () => context.pop(),
+        ),
       ),
       body: ListView(
+        padding: const EdgeInsets.symmetric(vertical: 8),
         children: [
-          _SectionHeader('Appearance'),
-          _SettingsTile(
-            icon: Icons.palette_outlined,
+          // Appearance
+          _sectionHeader(context, l10n.appearance),
+          _settingsTile(
+            context: context,
+            icon: Icons.palette_rounded,
             title: 'Theme',
-            subtitle: themeMode == ThemeMode.dark ? 'Dark' : themeMode == ThemeMode.light ? 'Light' : 'System Default',
-            trailing: DropdownButton<ThemeMode>(
-              value: themeMode,
-              underline: const SizedBox(),
-              items: const [
-                DropdownMenuItem(value: ThemeMode.system, child: Text('System')),
-                DropdownMenuItem(value: ThemeMode.light, child: Text('Light')),
-                DropdownMenuItem(value: ThemeMode.dark, child: Text('Dark')),
-              ],
-              onChanged: (mode) {
-                if (mode != null) ref.read(themeModeProvider.notifier).setThemeMode(mode);
-              },
+            subtitle: _themeLabel(themeMode, l10n),
+            colorScheme: colorScheme,
+            onTap: () => _showThemeDialog(context, l10n, themeMode),
+            trailing: _themeIcon(themeMode),
+          ),
+          const Divider(indent: 72, endIndent: 20),
+
+          // Language
+          _sectionHeader(context, 'Localization'),
+          _settingsTile(
+            context: context,
+            icon: Icons.language_rounded,
+            title: l10n.language,
+            subtitle: _languageName(locale.languageCode),
+            colorScheme: colorScheme,
+            onTap: () => _showLanguageDialog(context, l10n, locale.languageCode),
+            trailing: Text(
+              _languageFlag(locale.languageCode),
+              style: const TextStyle(fontSize: 24),
             ),
           ),
-          const Divider(height: 1),
-
-          _SectionHeader('Language & Region'),
-          _SettingsTile(
-            icon: Icons.language_outlined,
-            title: 'Language',
-            subtitle: AppConstants.supportedLanguages.firstWhere((l) => l['code'] == locale.languageCode, orElse: () => {'nativeName': 'English'})['nativeName'] ?? 'English',
-            onTap: () => _showLanguagePicker(context, ref, locale),
-          ),
-          const Divider(height: 1),
-          _SettingsTile(
-            icon: Icons.currency_exchange,
-            title: 'Currency',
+          const Divider(indent: 72, endIndent: 20),
+          _settingsTile(
+            context: context,
+            icon: Icons.currency_exchange_rounded,
+            title: l10n.currency,
             subtitle: currencyState.selectedCurrencyCode,
-            onTap: () => _showCurrencyPicker(context, ref, currencyState),
+            colorScheme: colorScheme,
+            onTap: () => _showCurrencyDialog(context, l10n, currencyState),
+            trailing: Text(
+              currencyState.selectedCurrency?.symbol ?? '\$',
+              style: TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: colorScheme.primary,
+              ),
+            ),
           ),
-          const Divider(height: 1),
 
-          _SectionHeader('Notifications'),
-          _SettingsTile(
-            icon: Icons.notifications_outlined,
-            title: 'Push Notifications',
-            subtitle: 'Project updates and reports',
-            trailing: Switch(value: true, onChanged: (_) {}),
+          // Account
+          _sectionHeader(context, l10n.account),
+          _settingsTile(
+            context: context,
+            icon: Icons.person_outline_rounded,
+            title: l10n.profile,
+            subtitle: 'Manage your profile',
+            colorScheme: colorScheme,
+            onTap: () => context.push(AppRoutes.profile),
           ),
-          const Divider(height: 1),
 
-          _SectionHeader('About'),
-          _SettingsTile(
-            icon: Icons.info_outlined,
-            title: 'Version',
-            subtitle: '1.0.0',
+          // About
+          _sectionHeader(context, l10n.about),
+          _settingsTile(
+            context: context,
+            icon: Icons.info_outline_rounded,
+            title: l10n.appVersion,
+            subtitle: 'v$_appVersion',
+            colorScheme: colorScheme,
           ),
-          _SettingsTile(
-            icon: Icons.privacy_tip_outlined,
-            title: 'Privacy Policy',
-            onTap: () {},
-          ),
-          _SettingsTile(
+          const Divider(indent: 72, endIndent: 20),
+          _settingsTile(
+            context: context,
             icon: Icons.description_outlined,
-            title: 'Terms of Service',
+            title: l10n.termsOfService,
+            colorScheme: colorScheme,
             onTap: () {},
           ),
-          const Divider(height: 1),
+          const Divider(indent: 72, endIndent: 20),
+          _settingsTile(
+            context: context,
+            icon: Icons.privacy_tip_outlined,
+            title: l10n.privacyPolicy,
+            colorScheme: colorScheme,
+            onTap: () {},
+          ),
+          const Divider(indent: 72, endIndent: 20),
+          _settingsTile(
+            context: context,
+            icon: Icons.star_outline_rounded,
+            title: l10n.rateApp,
+            colorScheme: colorScheme,
+            onTap: () {},
+          ),
+          const Divider(indent: 72, endIndent: 20),
+          _settingsTile(
+            context: context,
+            icon: Icons.help_outline_rounded,
+            title: l10n.contactSupport,
+            colorScheme: colorScheme,
+            onTap: () {},
+          ),
 
-          _SectionHeader('Account'),
-          _SettingsTile(
-            icon: Icons.logout,
-            title: 'Sign Out',
-            titleColor: colorScheme.error,
-            iconColor: colorScheme.error,
-            onTap: () => _confirmSignOut(context, ref),
+          // Sign Out
+          _sectionHeader(context, ''),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+            child: OutlinedButton.icon(
+              onPressed: () => _confirmSignOut(context, l10n),
+              icon: const Icon(Icons.logout_rounded, color: AppColors.error),
+              label: Text(
+                l10n.signOut,
+                style: const TextStyle(color: AppColors.error),
+              ),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: AppColors.error),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                minimumSize: const Size(double.infinity, 48),
+              ),
+            ),
           ),
           const SizedBox(height: 32),
         ],
@@ -101,153 +177,280 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
-  void _showLanguagePicker(BuildContext context, WidgetRef ref, dynamic currentLocale) {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (_) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Padding(
-            padding: EdgeInsets.all(16),
-            child: Text('Select Language', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-          ),
-          const Divider(height: 1),
-          ...AppConstants.supportedLanguages.map((lang) => ListTile(
-            leading: Text(lang['flag'] ?? '🌐', style: const TextStyle(fontSize: 24)),
-            title: Text(lang['nativeName'] ?? ''),
-            subtitle: Text(lang['name'] ?? ''),
-            trailing: currentLocale.languageCode == lang['code'] ? Icon(Icons.check, color: Theme.of(context).colorScheme.primary) : null,
-            onTap: () {
-              ref.read(localeProvider.notifier).setLocale(lang['code']!);
-              Navigator.pop(context);
-            },
-          )),
-          const SizedBox(height: 16),
-        ],
-      ),
-    );
-  }
-
-  void _showCurrencyPicker(BuildContext context, WidgetRef ref, dynamic currentState) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (_) => DraggableScrollableSheet(
-        expand: false,
-        maxChildSize: 0.85,
-        builder: (ctx, scroll) => Column(
-          children: [
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: Text('Select Currency', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            ),
-            const Divider(height: 1),
-            Expanded(
-              child: ListView.builder(
-                controller: scroll,
-                itemCount: currentState.currencies.length,
-                itemBuilder: (_, i) {
-                  final c = currentState.currencies[i];
-                  return ListTile(
-                    leading: Text(c.symbol, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                    title: Text(c.code),
-                    subtitle: Text(c.name),
-                    trailing: currentState.selectedCurrencyCode == c.code ? Icon(Icons.check, color: Theme.of(context).colorScheme.primary) : null,
-                    onTap: () {
-                      ref.read(currencyProvider.notifier).setCurrency(c.code);
-                      Navigator.pop(context);
-                    },
-                  );
-                },
-              ),
-            ),
-          ],
+  Widget _sectionHeader(BuildContext context, String title) {
+    if (title.isEmpty) return const SizedBox(height: 8);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+      child: Text(
+        title,
+        style: TextStyle(
+          fontFamily: 'Poppins',
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: Theme.of(context).colorScheme.primary,
+          letterSpacing: 0.8,
         ),
       ),
     );
   }
 
-  void _confirmSignOut(BuildContext context, WidgetRef ref) {
-    showDialog(
+  Widget _settingsTile({
+    required BuildContext context,
+    required IconData icon,
+    required String title,
+    String? subtitle,
+    required ColorScheme colorScheme,
+    VoidCallback? onTap,
+    Widget? trailing,
+  }) {
+    return ListTile(
+      leading: Container(
+        width: 42,
+        height: 42,
+        decoration: BoxDecoration(
+          color: colorScheme.primaryContainer,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Icon(icon, size: 20, color: colorScheme.primary),
+      ),
+      title: Text(
+        title,
+        style: const TextStyle(
+          fontFamily: 'Poppins',
+          fontSize: 15,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+      subtitle: subtitle != null
+          ? Text(
+              subtitle,
+              style: TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 12,
+                color: colorScheme.onSurfaceVariant,
+              ),
+            )
+          : null,
+      trailing: trailing ??
+          (onTap != null
+              ? Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  size: 14,
+                  color: colorScheme.onSurfaceVariant,
+                )
+              : null),
+      onTap: onTap,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+    );
+  }
+
+  String _themeLabel(ThemeMode mode, AppLocalizations l10n) {
+    switch (mode) {
+      case ThemeMode.light:
+        return l10n.lightMode;
+      case ThemeMode.dark:
+        return l10n.darkMode;
+      case ThemeMode.system:
+        return l10n.systemTheme;
+    }
+  }
+
+  Widget _themeIcon(ThemeMode mode) {
+    final icons = {
+      ThemeMode.light: Icons.light_mode_rounded,
+      ThemeMode.dark: Icons.dark_mode_rounded,
+      ThemeMode.system: Icons.brightness_auto_rounded,
+    };
+    return Icon(icons[mode] ?? Icons.brightness_auto_rounded);
+  }
+
+  String _languageName(String code) {
+    return AppConstants.supportedLanguages.firstWhere(
+      (l) => l['code'] == code,
+      orElse: () => {'nativeName': 'English'},
+    )['nativeName'] ?? 'English';
+  }
+
+  String _languageFlag(String code) {
+    return AppConstants.supportedLanguages.firstWhere(
+      (l) => l['code'] == code,
+      orElse: () => {'flag': '🌐'},
+    )['flag'] ?? '🌐';
+  }
+
+  void _showThemeDialog(BuildContext context, AppLocalizations l10n, ThemeMode current) {
+    showModalBottomSheet(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Sign Out'),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Select Theme', style: Theme.of(context).textTheme.titleLarge),
+              const SizedBox(height: 16),
+              ...ThemeMode.values.map((mode) {
+                return RadioListTile<ThemeMode>(
+                  title: Text(_themeLabel(mode, l10n)),
+                  secondary: Icon(_themeIcon(mode).icon),
+                  value: mode,
+                  groupValue: current,
+                  onChanged: (value) {
+                    if (value != null) {
+                      ref.read(themeModeProvider.notifier).setThemeMode(value);
+                    }
+                    Navigator.pop(context);
+                  },
+                );
+              }).toList(),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showLanguageDialog(BuildContext context, AppLocalizations l10n, String current) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      isScrollControlled: true,
+      builder: (context) {
+        return DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.6,
+          builder: (_, controller) => Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(l10n.selectLanguage, style: Theme.of(context).textTheme.titleLarge),
+                const SizedBox(height: 16),
+                Expanded(
+                  child: ListView(
+                    controller: controller,
+                    children: AppConstants.supportedLanguages.map((lang) {
+                      final isSelected = current == lang['code'];
+                      return ListTile(
+                        leading: Text(lang['flag']!, style: const TextStyle(fontSize: 28)),
+                        title: Text(lang['nativeName']!),
+                        subtitle: Text(lang['name']!),
+                        trailing: isSelected
+                            ? Icon(Icons.check_circle_rounded,
+                                color: Theme.of(context).colorScheme.primary)
+                            : null,
+                        onTap: () {
+                          ref.read(localeProvider.notifier).setLocale(lang['code']!);
+                          Navigator.pop(context);
+                        },
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showCurrencyDialog(BuildContext context, AppLocalizations l10n, CurrencyState state) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      isScrollControlled: true,
+      builder: (context) {
+        return DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.7,
+          builder: (_, controller) => Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(l10n.selectCurrency, style: Theme.of(context).textTheme.titleLarge),
+                const SizedBox(height: 16),
+                Expanded(
+                  child: ListView(
+                    controller: controller,
+                    children: state.currencies.map((currency) {
+                      final isSelected = state.selectedCurrencyCode == currency.code;
+                      return ListTile(
+                        leading: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? Theme.of(context).colorScheme.primaryContainer
+                                : Theme.of(context).colorScheme.surfaceVariant,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Center(
+                            child: Text(
+                              currency.symbol,
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: isSelected
+                                    ? Theme.of(context).colorScheme.primary
+                                    : null,
+                              ),
+                            ),
+                          ),
+                        ),
+                        title: Text('${currency.code} - ${currency.name}'),
+                        trailing: isSelected
+                            ? Icon(Icons.check_circle_rounded,
+                                color: Theme.of(context).colorScheme.primary)
+                            : null,
+                        onTap: () {
+                          ref.read(currencyProvider.notifier).setCurrency(currency.code);
+                          Navigator.pop(context);
+                        },
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _confirmSignOut(BuildContext context, AppLocalizations l10n) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(l10n.signOut),
         content: const Text('Are you sure you want to sign out?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          FilledButton(
-            onPressed: () {
-              Navigator.pop(context);
-              ref.read(authProvider.notifier).logout();
-              context.go('/login');
-            },
-            style: FilledButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.error),
-            child: const Text('Sign Out'),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(l10n.cancel),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error, foregroundColor: Colors.white),
+            child: Text(l10n.signOut),
           ),
         ],
       ),
     );
+
+    if (confirmed == true && mounted) {
+      await ref.read(authProvider.notifier).logout();
+      if (mounted) context.go(AppRoutes.login);
+    }
   }
-}
-
-class _SectionHeader extends StatelessWidget {
-  final String title;
-  const _SectionHeader(this.title);
-
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.fromLTRB(16, 20, 16, 6),
-    child: Text(
-      title.toUpperCase(),
-      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-        color: Theme.of(context).colorScheme.primary,
-        fontWeight: FontWeight.bold,
-        letterSpacing: 1.2,
-      ),
-    ),
-  );
-}
-
-class _SettingsTile extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String? subtitle;
-  final Widget? trailing;
-  final VoidCallback? onTap;
-  final Color? titleColor;
-  final Color? iconColor;
-
-  const _SettingsTile({
-    required this.icon,
-    required this.title,
-    this.subtitle,
-    this.trailing,
-    this.onTap,
-    this.titleColor,
-    this.iconColor,
-  });
-
-  @override
-  Widget build(BuildContext context) => ListTile(
-    leading: Icon(icon, color: iconColor ?? Theme.of(context).colorScheme.onSurfaceVariant),
-    title: Text(title, style: TextStyle(color: titleColor, fontWeight: FontWeight.w500)),
-    subtitle: subtitle != null ? Text(subtitle!) : null,
-    trailing: trailing ?? (onTap != null ? const Icon(Icons.chevron_right) : null),
-    onTap: onTap,
-  );
-}
-
-// Need to import AppConstants
-class AppConstants {
-  static const List<Map<String, String>> supportedLanguages = [
-    {'code': 'en', 'name': 'English', 'nativeName': 'English', 'flag': '🇺🇸'},
-    {'code': 'ar', 'name': 'Arabic', 'nativeName': 'العربية', 'flag': '🇸🇦'},
-    {'code': 'es', 'name': 'Spanish', 'nativeName': 'Español', 'flag': '🇪🇸'},
-    {'code': 'fr', 'name': 'French', 'nativeName': 'Français', 'flag': '🇫🇷'},
-    {'code': 'zh', 'name': 'Chinese', 'nativeName': '中文', 'flag': '🇨🇳'},
-    {'code': 'hi', 'name': 'Hindi', 'nativeName': 'हिन्दी', 'flag': '🇮🇳'},
-    {'code': 'ur', 'name': 'Urdu', 'nativeName': 'اردو', 'flag': '🇵🇰'},
-  ];
 }

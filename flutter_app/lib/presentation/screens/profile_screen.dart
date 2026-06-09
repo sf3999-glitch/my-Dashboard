@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
+import '../../core/theme/app_theme.dart';
+import '../../core/localization/app_localizations.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/common/custom_button.dart';
 import '../widgets/common/custom_text_field.dart';
@@ -13,193 +16,212 @@ class ProfileScreen extends ConsumerStatefulWidget {
 }
 
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
-  late TextEditingController _nameCtrl;
-  bool _editing = false;
+  late TextEditingController _nameController;
+  late TextEditingController _emailController;
+  bool _isEditing = false;
 
   @override
   void initState() {
     super.initState();
-    final user = ref.read(authProvider).user;
-    _nameCtrl = TextEditingController(text: user?.name ?? '');
+    final user = ref.read(currentUserProvider);
+    _nameController = TextEditingController(text: user?.name ?? '');
+    _emailController = TextEditingController(text: user?.email ?? '');
   }
 
   @override
   void dispose() {
-    _nameCtrl.dispose();
+    _nameController.dispose();
+    _emailController.dispose();
     super.dispose();
   }
 
   Future<void> _saveProfile() async {
-    final ok = await ref.read(authProvider.notifier).updateProfile(name: _nameCtrl.text.trim());
-    if (ok && mounted) setState(() => _editing = false);
+    final success = await ref.read(authProvider.notifier).updateProfile(
+          name: _nameController.text.trim(),
+        );
+    if (success && mounted) {
+      setState(() => _isEditing = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Profile updated successfully'),
+          backgroundColor: AppColors.success,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final auth = ref.watch(authProvider);
-    final user = auth.user;
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+    final l10n = AppLocalizations.of(context);
+    final user = ref.watch(currentUserProvider);
+    final authState = ref.watch(authProvider);
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('My Profile'),
-        centerTitle: true,
+        title: Text(l10n.profile),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded),
+          onPressed: () => context.pop(),
+        ),
         actions: [
-          if (!_editing)
-            IconButton(icon: const Icon(Icons.edit_outlined), onPressed: () => setState(() => _editing = true))
-          else ...[
-            TextButton(onPressed: () => setState(() => _editing = false), child: const Text('Cancel')),
-            TextButton(onPressed: _saveProfile, child: const Text('Save')),
-          ],
+          if (!_isEditing)
+            TextButton.icon(
+              onPressed: () => setState(() => _isEditing = true),
+              icon: const Icon(Icons.edit_outlined, size: 18),
+              label: Text(l10n.edit),
+            )
+          else
+            TextButton(
+              onPressed: () => setState(() {
+                _isEditing = false;
+                final u = ref.read(currentUserProvider);
+                _nameController.text = u?.name ?? '';
+              }),
+              child: Text(l10n.cancel),
+            ),
         ],
       ),
       body: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
         child: Column(
           children: [
-            // Header section
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(32),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [colorScheme.primary, colorScheme.primaryContainer],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-              ),
-              child: Column(
-                children: [
-                  Stack(
-                    children: [
-                      CircleAvatar(
-                        radius: 48,
-                        backgroundColor: Colors.white24,
-                        backgroundImage: user?.avatarUrl != null ? NetworkImage(user!.avatarUrl!) : null,
-                        child: user?.avatarUrl == null ? Text(user?.name.substring(0, 1).toUpperCase() ?? 'U', style: const TextStyle(fontSize: 32, color: Colors.white, fontWeight: FontWeight.bold)) : null,
+            // Avatar
+            Stack(
+              children: [
+                Container(
+                  width: 100,
+                  height: 100,
+                  decoration: BoxDecoration(
+                    gradient: AppColors.primaryGradient,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.primaryLight.withOpacity(0.3),
+                        blurRadius: 20,
+                        spreadRadius: 2,
                       ),
-                      if (_editing)
-                        Positioned(
-                          bottom: 0,
-                          right: 0,
-                          child: CircleAvatar(
-                            radius: 16,
-                            backgroundColor: colorScheme.secondary,
-                            child: const Icon(Icons.camera_alt, size: 16, color: Colors.white),
-                          ),
-                        ),
                     ],
                   ),
-                  const SizedBox(height: 12),
-                  Text(user?.name ?? 'User', style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 4),
-                  Text(user?.email ?? '', style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 14)),
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                    decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(20)),
-                    child: Text(user?.role ?? 'User', style: const TextStyle(color: Colors.white, fontSize: 12)),
-                  ),
-                ],
-              ),
-            ),
-
-            Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Personal Information', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 16),
-
-                  _editing
-                      ? CustomTextField(
-                          controller: _nameCtrl,
-                          label: 'Full Name',
-                          prefixIcon: Icons.person_outlined,
-                        )
-                      : _InfoRow(label: 'Full Name', value: user?.name ?? '-', icon: Icons.person_outlined),
-                  const SizedBox(height: 12),
-                  _InfoRow(label: 'Email', value: user?.email ?? '-', icon: Icons.email_outlined),
-                  const SizedBox(height: 12),
-                  _InfoRow(label: 'Language', value: user?.language?.toUpperCase() ?? 'EN', icon: Icons.language_outlined),
-                  const SizedBox(height: 12),
-                  _InfoRow(label: 'Currency', value: user?.currency ?? 'USD', icon: Icons.attach_money),
-                  const SizedBox(height: 12),
-                  _InfoRow(label: 'Member Since', value: user?.createdAt != null ? '${user!.createdAt!.year}' : '-', icon: Icons.calendar_today_outlined),
-
-                  const SizedBox(height: 32),
-                  Text('Account Actions', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 16),
-
-                  OutlinedButton.icon(
-                    onPressed: () {},
-                    icon: const Icon(Icons.lock_outlined),
-                    label: const Text('Change Password'),
-                    style: OutlinedButton.styleFrom(minimumSize: const Size(double.infinity, 48), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                  ),
-                  const SizedBox(height: 12),
-                  OutlinedButton.icon(
-                    onPressed: () {
-                      showDialog(
-                        context: context,
-                        builder: (_) => AlertDialog(
-                          title: const Text('Delete Account'),
-                          content: const Text('This will permanently delete your account and all projects. This cannot be undone.'),
-                          actions: [
-                            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-                            FilledButton(
-                              onPressed: () => Navigator.pop(context),
-                              style: FilledButton.styleFrom(backgroundColor: colorScheme.error),
-                              child: const Text('Delete'),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                    icon: Icon(Icons.delete_forever_outlined, color: colorScheme.error),
-                    label: Text('Delete Account', style: TextStyle(color: colorScheme.error)),
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size(double.infinity, 48),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      side: BorderSide(color: colorScheme.error),
+                  child: Center(
+                    child: Text(
+                      user?.initials ?? 'U',
+                      style: const TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 36,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
-                ],
+                ),
+                if (_isEditing)
+                  Positioned(
+                    bottom: 0,
+                    right: 0,
+                    child: Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: colorScheme.primary,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: colorScheme.background, width: 2),
+                      ),
+                      child: const Icon(Icons.camera_alt_rounded, size: 16, color: Colors.white),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Text(user?.name ?? '', style: Theme.of(context).textTheme.headlineSmall),
+            Text(user?.email ?? '', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: colorScheme.onSurfaceVariant)),
+
+            const SizedBox(height: 32),
+
+            // Form
+            CustomTextField(
+              controller: _nameController,
+              label: l10n.fullName,
+              prefixIcon: Icons.person_outline_rounded,
+              readOnly: !_isEditing,
+              validator: null,
+            ),
+            const SizedBox(height: 16),
+            CustomTextField(
+              controller: _emailController,
+              label: l10n.email,
+              prefixIcon: Icons.email_outlined,
+              readOnly: true,
+              validator: null,
+            ),
+
+            const SizedBox(height: 16),
+
+            // Verified badge
+            if (user?.isVerified == true)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  color: AppColors.success.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: AppColors.success.withOpacity(0.3)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.verified_rounded, color: AppColors.success, size: 16),
+                    const SizedBox(width: 6),
+                    const Text('Email Verified', style: TextStyle(color: AppColors.success, fontWeight: FontWeight.w600)),
+                  ],
+                ),
               ),
+
+            const SizedBox(height: 32),
+
+            if (_isEditing)
+              CustomButton(
+                text: 'Save Changes',
+                onPressed: authState.isLoading ? null : _saveProfile,
+                isLoading: authState.isLoading,
+                width: double.infinity,
+                icon: Icons.save_rounded,
+              ),
+
+            // Stats
+            const SizedBox(height: 24),
+            Row(
+              children: [
+                Expanded(child: _statCard(context, 'Member Since', _formatDate(user?.createdAt), colorScheme)),
+                const SizedBox(width: 12),
+                Expanded(child: _statCard(context, 'Account Type', user?.role.toUpperCase() ?? 'USER', colorScheme)),
+              ],
             ),
           ],
         ),
       ),
     );
   }
-}
 
-class _InfoRow extends StatelessWidget {
-  final String label;
-  final String value;
-  final IconData icon;
-  const _InfoRow({required this.label, required this.value, required this.icon});
+  Widget _statCard(BuildContext context, String label, String value, ColorScheme colorScheme) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceVariant,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        children: [
+          Text(value, style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 4),
+          Text(label, style: Theme.of(context).textTheme.labelSmall),
+        ],
+      ),
+    );
+  }
 
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(14),
-    decoration: BoxDecoration(
-      color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.4),
-      borderRadius: BorderRadius.circular(12),
-    ),
-    child: Row(
-      children: [
-        Icon(icon, size: 18, color: Theme.of(context).colorScheme.onSurfaceVariant),
-        const SizedBox(width: 12),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(label, style: Theme.of(context).textTheme.labelSmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
-            Text(value, style: const TextStyle(fontWeight: FontWeight.w500)),
-          ],
-        ),
-      ],
-    ),
-  );
+  String _formatDate(DateTime? date) {
+    if (date == null) return 'N/A';
+    return '${date.day}/${date.month}/${date.year}';
+  }
 }

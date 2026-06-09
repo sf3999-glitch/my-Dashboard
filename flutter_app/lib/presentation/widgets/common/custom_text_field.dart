@@ -3,43 +3,43 @@ import 'package:flutter/services.dart';
 
 class CustomTextField extends StatelessWidget {
   final TextEditingController? controller;
-  final String label;
+  final String? label;
   final String? hint;
-  final IconData? prefixIcon;
-  final Widget? suffixIcon;
   final bool obscureText;
   final TextInputType? keyboardType;
+  final IconData? prefixIcon;
+  final Widget? suffixIcon;
   final String? Function(String?)? validator;
   final void Function(String)? onChanged;
   final void Function(String)? onSubmitted;
+  final bool readOnly;
   final int? maxLines;
   final int? maxLength;
-  final bool readOnly;
-  final bool enabled;
   final List<TextInputFormatter>? inputFormatters;
-  final TextCapitalization textCapitalization;
   final FocusNode? focusNode;
+  final TextCapitalization textCapitalization;
+  final bool autofocus;
   final TextInputAction? textInputAction;
 
   const CustomTextField({
     super.key,
     this.controller,
-    required this.label,
+    this.label,
     this.hint,
-    this.prefixIcon,
-    this.suffixIcon,
     this.obscureText = false,
     this.keyboardType,
+    this.prefixIcon,
+    this.suffixIcon,
     this.validator,
     this.onChanged,
     this.onSubmitted,
+    this.readOnly = false,
     this.maxLines = 1,
     this.maxLength,
-    this.readOnly = false,
-    this.enabled = true,
     this.inputFormatters,
-    this.textCapitalization = TextCapitalization.none,
     this.focusNode,
+    this.textCapitalization = TextCapitalization.none,
+    this.autofocus = false,
     this.textInputAction,
   });
 
@@ -49,38 +49,28 @@ class CustomTextField extends StatelessWidget {
       controller: controller,
       obscureText: obscureText,
       keyboardType: keyboardType,
+      readOnly: readOnly,
+      maxLines: maxLines,
+      maxLength: maxLength,
+      inputFormatters: inputFormatters,
+      focusNode: focusNode,
+      textCapitalization: textCapitalization,
+      autofocus: autofocus,
+      textInputAction: textInputAction,
       validator: validator,
       onChanged: onChanged,
       onFieldSubmitted: onSubmitted,
-      maxLines: obscureText ? 1 : maxLines,
-      maxLength: maxLength,
-      readOnly: readOnly,
-      enabled: enabled,
-      inputFormatters: inputFormatters,
-      textCapitalization: textCapitalization,
-      focusNode: focusNode,
-      textInputAction: textInputAction,
       decoration: InputDecoration(
         labelText: label,
         hintText: hint,
         prefixIcon: prefixIcon != null ? Icon(prefixIcon) : null,
         suffixIcon: suffixIcon,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Theme.of(context).colorScheme.outline.withOpacity(0.5)),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Theme.of(context).colorScheme.primary, width: 2),
-        ),
-        errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Theme.of(context).colorScheme.error),
-        ),
+        counterText: '',
         filled: true,
-        fillColor: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      ),
+      style: const TextStyle(
+        fontFamily: 'Poppins',
+        fontSize: 15,
       ),
     );
   }

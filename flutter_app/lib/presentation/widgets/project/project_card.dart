@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../../data/models/project_model.dart';
-import '../../../core/utils/formatters.dart';
 
 class ProjectCard extends StatelessWidget {
   final ProjectModel project;
@@ -19,114 +19,167 @@ class ProjectCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final theme = Theme.of(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Card(
-      elevation: 2,
-      shadowColor: Colors.black12,
-      clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: InkWell(
-        onTap: onTap,
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          color: colorScheme.surface,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: colorScheme.shadow.withOpacity(0.08),
+              blurRadius: 16,
+              offset: const Offset(0, 4),
+            ),
+          ],
+          border: Border.all(color: colorScheme.outline.withOpacity(0.2)),
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header / Thumbnail
-            Expanded(
-              flex: 3,
-              child: Container(
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: _getGradient(project.houseStyle),
+            // Thumbnail / Header
+            Container(
+              height: 130,
+              decoration: BoxDecoration(
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                gradient: LinearGradient(
+                  colors: _getGradientColors(project.houseStyle),
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+              ),
+              child: Stack(
+                children: [
+                  // Background pattern
+                  Positioned.fill(
+                    child: ClipRRect(
+                      borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                      child: CustomPaint(
+                        painter: _HousePainter(project),
+                      ),
+                    ),
                   ),
-                ),
-                child: Stack(
-                  children: [
-                    Center(
-                      child: Icon(Icons.home_work_rounded, size: 56, color: Colors.white.withOpacity(0.3)),
+
+                  // Status badge
+                  Positioned(
+                    top: 12,
+                    right: 12,
+                    child: _buildStatusBadge(project.status),
+                  ),
+
+                  // Floor info
+                  Positioned(
+                    bottom: 12,
+                    left: 12,
+                    child: Row(
+                      children: [
+                        _infoChip(Icons.layers_rounded, '${project.floors}F'),
+                        const SizedBox(width: 6),
+                        _infoChip(Icons.bed_rounded, '${project.bedrooms}B'),
+                        const SizedBox(width: 6),
+                        _infoChip(Icons.bathtub_rounded, '${project.bathrooms}Ba'),
+                      ],
                     ),
-                    Positioned(
-                      top: 8,
-                      right: 8,
-                      child: PopupMenuButton<String>(
-                        icon: Icon(Icons.more_vert, color: Colors.white.withOpacity(0.8)),
-                        onSelected: (v) {
-                          if (v == 'delete' && onDelete != null) onDelete!();
-                          if (v == 'duplicate' && onDuplicate != null) onDuplicate!();
-                        },
-                        itemBuilder: (_) => [
-                          const PopupMenuItem(value: 'duplicate', child: Row(children: [Icon(Icons.copy, size: 18), SizedBox(width: 8), Text('Duplicate')])),
-                          const PopupMenuItem(value: 'delete', child: Row(children: [Icon(Icons.delete_outline, size: 18, color: Colors.red), SizedBox(width: 8), Text('Delete', style: TextStyle(color: Colors.red))])),
-                        ],
-                      ),
-                    ),
-                    Positioned(
-                      bottom: 8,
-                      left: 8,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: _getStatusColor(project.status).withOpacity(0.9),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          _getStatusLabel(project.status),
-                          style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
 
             // Content
-            Expanded(
-              flex: 2,
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      project.name,
-                      style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Icon(Icons.location_on_outlined, size: 12, color: colorScheme.onSurfaceVariant),
-                        const SizedBox(width: 2),
-                        Expanded(
-                          child: Text(
-                            '${project.city ?? ''} ${project.country ?? ''}'.trim(),
-                            style: theme.textTheme.labelSmall?.copyWith(color: colorScheme.onSurfaceVariant),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          project.name,
+                          style: const TextStyle(
+                            fontFamily: 'Poppins',
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      _buildPopupMenu(context),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.location_on_rounded,
+                        size: 13,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                      const SizedBox(width: 3),
+                      Expanded(
+                        child: Text(
+                          project.locationDisplay,
+                          style: TextStyle(
+                            fontFamily: 'Poppins',
+                            fontSize: 12,
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: colorScheme.primaryContainer,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          project.sizeDisplay,
+                          style: TextStyle(
+                            fontFamily: 'Poppins',
+                            fontSize: 11,
+                            color: colorScheme.primary,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
-                      ],
-                    ),
-                    const Spacer(),
-                    Row(
-                      children: [
-                        _InfoChip(icon: Icons.layers_outlined, label: '${project.floors ?? 1}F'),
-                        const SizedBox(width: 6),
-                        _InfoChip(icon: Icons.bed_outlined, label: '${project.bedrooms ?? 0}B'),
-                        const Spacer(),
-                        Text(
-                          Formatters.relativeDate(project.updatedAt ?? project.createdAt ?? DateTime.now()),
-                          style: theme.textTheme.labelSmall?.copyWith(color: colorScheme.onSurfaceVariant),
+                      ),
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: colorScheme.surfaceVariant,
+                          borderRadius: BorderRadius.circular(6),
                         ),
-                      ],
+                        child: Text(
+                          project.houseStyle,
+                          style: TextStyle(
+                            fontFamily: 'Poppins',
+                            fontSize: 11,
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    _formatDate(project.updatedAt),
+                    style: TextStyle(
+                      fontFamily: 'Poppins',
+                      fontSize: 11,
+                      color: colorScheme.onSurfaceVariant,
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -135,49 +188,174 @@ class ProjectCard extends StatelessWidget {
     );
   }
 
-  List<Color> _getGradient(String? style) {
-    switch (style?.toLowerCase()) {
-      case 'modern': return [const Color(0xFF1565C0), const Color(0xFF1976D2)];
-      case 'contemporary': return [const Color(0xFF00695C), const Color(0xFF00897B)];
-      case 'traditional': return [const Color(0xFF6A1B9A), const Color(0xFF8E24AA)];
-      case 'colonial': return [const Color(0xFF4E342E), const Color(0xFF6D4C41)];
-      case 'mediterranean': return [const Color(0xFFE65100), const Color(0xFFF4511E)];
-      case 'minimalist': return [const Color(0xFF37474F), const Color(0xFF546E7A)];
-      default: return [const Color(0xFF1565C0), const Color(0xFF0D47A1)];
+  Widget _buildStatusBadge(ProjectStatus status) {
+    final Map<ProjectStatus, Color> colors = {
+      ProjectStatus.completed: AppColors.success,
+      ProjectStatus.generating: AppColors.warning,
+      ProjectStatus.draft: Colors.grey,
+      ProjectStatus.error: AppColors.error,
+    };
+
+    final Map<ProjectStatus, IconData> icons = {
+      ProjectStatus.completed: Icons.check_circle_rounded,
+      ProjectStatus.generating: Icons.pending_rounded,
+      ProjectStatus.draft: Icons.edit_rounded,
+      ProjectStatus.error: Icons.error_rounded,
+    };
+
+    final color = colors[status] ?? Colors.grey;
+    final icon = icons[status] ?? Icons.circle;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.3),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: color),
+          const SizedBox(width: 4),
+          Text(
+            _statusLabel(status),
+            style: TextStyle(
+              fontFamily: 'Poppins',
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _infoChip(IconData icon, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.3),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 10, color: Colors.white),
+          const SizedBox(width: 3),
+          Text(
+            label,
+            style: const TextStyle(
+              fontFamily: 'Poppins',
+              fontSize: 10,
+              color: Colors.white,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPopupMenu(BuildContext context) {
+    return PopupMenuButton<String>(
+      icon: Icon(Icons.more_vert_rounded, size: 18, color: Theme.of(context).colorScheme.onSurfaceVariant),
+      itemBuilder: (context) => [
+        const PopupMenuItem(value: 'duplicate', child: Row(children: [Icon(Icons.copy_rounded, size: 16), SizedBox(width: 8), Text('Duplicate')])),
+        const PopupMenuItem(value: 'delete', child: Row(children: [Icon(Icons.delete_outline_rounded, size: 16, color: AppColors.error), SizedBox(width: 8), Text('Delete', style: TextStyle(color: AppColors.error))])),
+      ],
+      onSelected: (value) {
+        if (value == 'delete') onDelete?.call();
+        if (value == 'duplicate') onDuplicate?.call();
+      },
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints(),
+    );
+  }
+
+  List<Color> _getGradientColors(String style) {
+    final gradients = {
+      'modern': [const Color(0xFF1A3A6B), const Color(0xFF2D5BE3)],
+      'contemporary': [const Color(0xFF0E4D3D), const Color(0xFF1B8A6B)],
+      'traditional': [const Color(0xFF6B3A1A), const Color(0xFFB0692A)],
+      'colonial': [const Color(0xFF3A1A6B), const Color(0xFF6B3AB5)],
+      'mediterranean': [const Color(0xFF6B4A1A), const Color(0xFFD4822A)],
+      'craftsman': [const Color(0xFF2A5A1A), const Color(0xFF5AA82A)],
+      'ranch': [const Color(0xFF6B1A2A), const Color(0xFFB52A4A)],
+      'victorian': [const Color(0xFF1A506B), const Color(0xFF2A8AB5)],
+    };
+    return gradients[style] ?? [const Color(0xFF1A3A6B), const Color(0xFF2D5BE3)];
+  }
+
+  String _statusLabel(ProjectStatus status) {
+    switch (status) {
+      case ProjectStatus.completed:
+        return 'Done';
+      case ProjectStatus.generating:
+        return 'Generating';
+      case ProjectStatus.draft:
+        return 'Draft';
+      case ProjectStatus.error:
+        return 'Error';
     }
   }
 
-  Color _getStatusColor(String? status) {
-    switch (status) {
-      case 'completed': return Colors.green;
-      case 'shared': return Colors.blue;
-      default: return Colors.orange;
-    }
-  }
-
-  String _getStatusLabel(String? status) {
-    switch (status) {
-      case 'completed': return 'Completed';
-      case 'shared': return 'Shared';
-      default: return 'Draft';
-    }
+  String _formatDate(DateTime date) {
+    final now = DateTime.now();
+    final diff = now.difference(date);
+    if (diff.inDays == 0) return 'Today';
+    if (diff.inDays == 1) return 'Yesterday';
+    if (diff.inDays < 7) return '${diff.inDays} days ago';
+    return '${date.day}/${date.month}/${date.year}';
   }
 }
 
-class _InfoChip extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  const _InfoChip({required this.icon, required this.label});
+class _HousePainter extends CustomPainter {
+  final ProjectModel project;
+
+  _HousePainter(this.project);
 
   @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
-        const SizedBox(width: 2),
-        Text(label, style: Theme.of(context).textTheme.labelSmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
-      ],
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.white.withOpacity(0.07)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
+
+    // Draw simplified house floor plan
+    final w = size.width;
+    final h = size.height;
+    final scale = w / 10;
+
+    // Outer boundary
+    canvas.drawRect(
+      Rect.fromLTWH(scale, scale, w - 2 * scale, h - 2 * scale),
+      paint,
+    );
+
+    // Interior walls
+    canvas.drawLine(
+      Offset(w * 0.45, scale),
+      Offset(w * 0.45, h * 0.65),
+      paint,
+    );
+    canvas.drawLine(
+      Offset(scale, h * 0.5),
+      Offset(w - scale, h * 0.5),
+      paint,
+    );
+
+    // Rooms with fill
+    final fillPaint = Paint()
+      ..color = Colors.white.withOpacity(0.05)
+      ..style = PaintingStyle.fill;
+
+    canvas.drawRect(
+      Rect.fromLTWH(scale, scale, (w - 2 * scale) * 0.45, (h - 2 * scale) * 0.5),
+      fillPaint,
     );
   }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

@@ -1,35 +1,83 @@
 class Validators {
+  Validators._();
+
+  static String? required(String? value, [String? fieldName]) {
+    if (value == null || value.trim().isEmpty) {
+      return '${fieldName ?? 'This field'} is required';
+    }
+    return null;
+  }
+
   static String? email(String? value) {
-    if (value == null || value.isEmpty) return 'Email is required';
-    final regex = RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$');
-    if (!regex.hasMatch(value)) return 'Enter a valid email address';
+    if (value == null || value.trim().isEmpty) {
+      return 'Email is required';
+    }
+    if (!RegExp(r'^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
+      return 'Please enter a valid email address';
+    }
     return null;
   }
 
   static String? password(String? value) {
-    if (value == null || value.isEmpty) return 'Password is required';
-    if (value.length < 8) return 'Password must be at least 8 characters';
+    if (value == null || value.isEmpty) {
+      return 'Password is required';
+    }
+    if (value.length < 8) {
+      return 'Password must be at least 8 characters';
+    }
     return null;
   }
 
-  static String? required(String? value, [String fieldName = 'This field']) {
-    if (value == null || value.trim().isEmpty) return '$fieldName is required';
+  static String? strongPassword(String? value) {
+    final error = password(value);
+    if (error != null) return error;
+
+    if (!RegExp(r'(?=.*[A-Z])').hasMatch(value!)) {
+      return 'Must contain at least one uppercase letter';
+    }
+    if (!RegExp(r'(?=.*[a-z])').hasMatch(value)) {
+      return 'Must contain at least one lowercase letter';
+    }
+    if (!RegExp(r'(?=.*\d)').hasMatch(value)) {
+      return 'Must contain at least one number';
+    }
     return null;
   }
 
-  static String? positiveNumber(String? value, [String fieldName = 'Value']) {
-    if (value == null || value.isEmpty) return '$fieldName is required';
-    final n = double.tryParse(value);
-    if (n == null) return 'Enter a valid number';
-    if (n <= 0) return '$fieldName must be greater than 0';
+  static String? Function(String?) confirmPassword(String? original) {
+    return (String? value) {
+      if (value == null || value.isEmpty) return 'Please confirm your password';
+      if (value != original) return 'Passwords do not match';
+      return null;
+    };
+  }
+
+  static String? minLength(String? value, int min, [String? fieldName]) {
+    if (value == null || value.isEmpty) return '${fieldName ?? 'Field'} is required';
+    if (value.length < min) return '${fieldName ?? 'Field'} must be at least $min characters';
     return null;
   }
 
-  static String? intRange(String? value, int min, int max, [String fieldName = 'Value']) {
-    if (value == null || value.isEmpty) return '$fieldName is required';
-    final n = int.tryParse(value);
-    if (n == null) return 'Enter a valid integer';
-    if (n < min || n > max) return '$fieldName must be between $min and $max';
+  static String? maxLength(String? value, int max, [String? fieldName]) {
+    if (value != null && value.length > max) {
+      return '${fieldName ?? 'Field'} must be at most $max characters';
+    }
+    return null;
+  }
+
+  static String? positiveNumber(String? value, [String? fieldName]) {
+    if (value == null || value.isEmpty) return '${fieldName ?? 'Field'} is required';
+    final num = double.tryParse(value);
+    if (num == null) return 'Please enter a valid number';
+    if (num <= 0) return 'Must be greater than 0';
+    return null;
+  }
+
+  static String? compose(String? value, List<String? Function(String?)> validators) {
+    for (final validator in validators) {
+      final error = validator(value);
+      if (error != null) return error;
+    }
     return null;
   }
 }
