@@ -1,0 +1,265 @@
+# =============================================================================
+# AI House Planner — .gitignore
+# Covers: Node.js, Flutter, React/Vite, Docker, macOS, Linux, Windows
+# =============================================================================
+
+# =============================================================================
+# SECRETS & ENVIRONMENT FILES — never commit these
+# =============================================================================
+.env
+.env.*
+!.env.example
+!.env.test
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+*.jks
+key.properties
+google-services.json
+GoogleService-Info.plist
+firebase_options.dart
+service-account*.json
+secrets/
+credentials/
+
+# =============================================================================
+# NODE.JS / NPM
+# =============================================================================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+.npm
+.yarn/
+.pnp.*
+.eslintcache
+.parcelcache
+.cache/
+dist/
+build/
+*.tgz
+package-lock.json.bak
+
+# =============================================================================
+# REACT / VITE (Admin Dashboard)
+# =============================================================================
+admin_dashboard/dist/
+admin_dashboard/.vite/
+admin_dashboard/node_modules/
+admin_dashboard/.env
+admin_dashboard/.env.*
+!admin_dashboard/.env.example
+
+# =============================================================================
+# BACKEND (Node.js)
+# =============================================================================
+backend/node_modules/
+backend/dist/
+backend/build/
+backend/uploads/
+backend/logs/
+backend/.env
+backend/.env.*
+!backend/.env.example
+backend/coverage/
+backend/.nyc_output/
+
+# Uploaded files and generated reports
+uploads/
+reports/
+*.pdf
+*.tmp
+
+# =============================================================================
+# FLUTTER APP
+# =============================================================================
+# Build output
+flutter_app/.dart_tool/
+flutter_app/.flutter-plugins
+flutter_app/.flutter-plugins-dependencies
+flutter_app/.packages
+flutter_app/build/
+flutter_app/.pub-cache/
+flutter_app/.pub/
+
+# Android
+flutter_app/android/.gradle/
+flutter_app/android/captures/
+flutter_app/android/local.properties
+flutter_app/android/key.properties
+flutter_app/android/app/google-services.json
+flutter_app/android/app/debug.keystore
+flutter_app/android/app/release.keystore
+flutter_app/android/**/GeneratedPluginRegistrant.java
+flutter_app/android/app/src/main/assets/
+
+# iOS
+flutter_app/ios/Pods/
+flutter_app/ios/.symlinks/
+flutter_app/ios/Flutter/.last_build_id
+flutter_app/ios/Podfile.lock
+flutter_app/ios/GoogleService-Info.plist
+flutter_app/ios/Runner/firebase_options.dart
+flutter_app/ios/**/*.mode1v3
+flutter_app/ios/**/*.mode2v3
+flutter_app/ios/**/*.moved-aside
+flutter_app/ios/**/*.pbxuser
+flutter_app/ios/**/*.perspectivev3
+flutter_app/ios/**/*sync/
+flutter_app/ios/**/.sconsign.dblite
+flutter_app/ios/**/.tags*
+flutter_app/ios/**/*.xcscmblueprint
+flutter_app/ios/**/*.xccheckout
+flutter_app/ios/**/*.xcuserstate
+flutter_app/ios/**/DerivedData/
+flutter_app/ios/**/Icon?
+flutter_app/ios/**/Thumbnails
+
+# Flutter generated
+flutter_app/lib/firebase_options.dart
+flutter_app/lib/generated_plugin_registrant.dart
+
+# macOS
+flutter_app/macos/Flutter/GeneratedPluginRegistrant.swift
+flutter_app/macos/Flutter/ephemeral/
+
+# Web
+flutter_app/web/
+
+# =============================================================================
+# DOCKER
+# =============================================================================
+docker-compose.override.yml
+docker-compose.local.yml
+.docker/
+*.tar
+*.tar.gz
+
+# =============================================================================
+# DATABASE
+# =============================================================================
+database/backups/
+database/dumps/
+*.sql.gz
+*.dump
+pgdata/
+postgres_data/
+
+# =============================================================================
+# LOGS
+# =============================================================================
+logs/
+*.log
+*.log.*
+npm-debug.log
+yarn-debug.log
+
+# =============================================================================
+# TESTING & COVERAGE
+# =============================================================================
+coverage/
+.nyc_output/
+.jest-cache/
+test-results/
+junit.xml
+
+# =============================================================================
+# EDITOR & IDE FILES
+# =============================================================================
+
+# VS Code
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.json.example
+
+# JetBrains (IntelliJ, WebStorm, Android Studio)
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+.idea_modules/
+
+# Vim / Neovim
+*.swp
+*.swo
+*~
+.netrwhist
+tags
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+
+# Sublime Text
+*.sublime-workspace
+*.sublime-project
+
+# =============================================================================
+# OPERATING SYSTEM FILES
+# =============================================================================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# Linux
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# =============================================================================
+# MISC
+# =============================================================================
+*.bak
+*.backup
+*.orig
+*.rej
+*.patch
+.history/
+.temp/
+tmp/
+temp/
+*.zip
+*.tar.gz
+*.rar
+screenshots/
