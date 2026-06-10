@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
@@ -15,6 +16,9 @@ void main() async {
 
   // Initialize Hive
   await Hive.initFlutter();
+
+  // Allow GoogleFonts to cache Poppins for offline use
+  GoogleFonts.config.allowRuntimeFetching = true;
 
   // Set preferred orientations
   await SystemChrome.setPreferredOrientations([
@@ -40,21 +44,26 @@ class AIHousePlannerApp extends ConsumerWidget {
     final locale = ref.watch(localeProvider);
     final router = ref.watch(appRouterProvider);
 
-    return MaterialApp.router(
-      title: 'AI House Planner',
-      debugShowCheckedModeBanner: false,
-      themeMode: themeMode,
-      theme: AppTheme.lightTheme,
-      darkTheme: AppTheme.darkTheme,
-      locale: locale,
-      supportedLocales: AppLocalizations.supportedLocales,
-      localizationsDelegates: const [
-        AppLocalizations.delegate,
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      routerConfig: router,
+    final isRtl = locale.languageCode == 'ar' || locale.languageCode == 'ur';
+
+    return Directionality(
+      textDirection: isRtl ? TextDirection.rtl : TextDirection.ltr,
+      child: MaterialApp.router(
+        title: 'AI House Planner',
+        debugShowCheckedModeBanner: false,
+        themeMode: themeMode,
+        theme: AppTheme.lightTheme,
+        darkTheme: AppTheme.darkTheme,
+        locale: locale,
+        supportedLocales: AppLocalizations.supportedLocales,
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        routerConfig: router,
+      ),
     );
   }
 }
